@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.net.*;
 import java.nio.file.Files;
 import java.util.Date;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -26,9 +27,13 @@ public class Main {
     private static final String IPV4_URL = "https://api.ipify.org";
     private static final String IPV6_URL = "https://api6.ipify.org";
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, URISyntaxException {
         File statusFile = getStatusFile();
-        IPStatus oldIpStatus = getIpStatus(statusFile);
+        Optional<IPStatus> oldIpStatusOptional = getIpStatus(statusFile);
+        if (oldIpStatusOptional.isEmpty()) {
+            throw new IOException("Could not read status file");
+        }
+        IPStatus oldIpStatus = oldIpStatusOptional.get();
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         executorService.scheduleAtFixedRate(() -> {
                     try {
@@ -116,19 +121,15 @@ public class Main {
     }
 
     //Reads the file and converts it to an instance ot IPStatus
-    private static IPStatus getIpStatus(File statusFile) throws IOException {
+    private static Optional<IPStatus> getIpStatus(File statusFile) throws IOException {
         String json = new String(Files.readAllBytes(statusFile.toPath()));
-        IPStatus result;
+        Optional<IPStatus> result = Optional.empty();
         try {
             if (!json.isEmpty()) {
-                result = IPStatus.fromJson(json);
-            } else {
-                result = new IPStatus(null, null, null, null);
+                result = Optional.of(IPStatus.fromJson(json));
             }
-
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "An exception occurred", e);
-            result = new IPStatus(null, null, null, null);
         }
         return result;
     }
@@ -136,12 +137,22 @@ public class Main {
     //Checks if a file named "ipStatus.txt" if found in the onedrive directory.
     //if it does not exist - tries to create one.
     //returns the file
-    private static File getStatusFile() throws IOException {
+    private static File getStatusFile() throws IOException, URISyntaxException {
         String oneDrivePath = System.getenv().get("OneDrive");
         String statusFilePath = oneDrivePath + File.separator + "ipStatus.txt";
         File statusFile = new File(statusFilePath);
         if (!statusFile.exists()) {
-            statusFile.createNewFile();
+            boolean fileCreated = statusFile.createNewFile();
+            InetAddress[] newAddresses = new InetAddress[2];
+            newAddresses[0] = checkExternalIp(IPV4_URL);
+            newAddresses[1] = checkExternalIp(IPV6_URL);
+            writeNewStatusFile(newAddresses,
+                    new IPStatus(null, null, null, null),
+                    statusFile);
+
+            if (!fileCreated) {
+                throw new IOException("Could not create status file at " + statusFilePath);
+            }
         }
         return statusFile;
     }
