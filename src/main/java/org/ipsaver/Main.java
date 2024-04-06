@@ -21,7 +21,7 @@ public class Main {
 
     public static final int ONE_HOUR = 3600000;
 
-    public static void main(String[] args) throws IOException, URISyntaxException, InterruptedException {
+    public static void main(String[] args) throws IOException {
         File statusFile = getStatusFile();
         IPStatus oldIpStatus = getIpStatus(statusFile);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
