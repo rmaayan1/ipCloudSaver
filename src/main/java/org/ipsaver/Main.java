@@ -7,6 +7,9 @@ import java.io.InputStreamReader;
 import java.net.*;
 import java.nio.file.Files;
 import java.util.Date;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /*
 A program that checks for the computer's external ip.
@@ -21,25 +24,29 @@ public class Main {
     public static void main(String[] args) throws IOException, URISyntaxException, InterruptedException {
         File statusFile = getStatusFile();
         IPStatus oldIpStatus = getIpStatus(statusFile);
-        int sleepTime = getSleepTime(oldIpStatus.getLastCheckTime());
-        Thread.sleep(sleepTime);
-        while(true) {
-            InetAddress[] newAddresses = new InetAddress[2];
-
-            checkExternalIp(newAddresses);
-
-            writeNewStatusFile(newAddresses,
-                    oldIpStatus,
-                    statusFile);
-            Thread.sleep(ONE_HOUR);
-        }
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+        executorService.scheduleAtFixedRate(() -> {
+                    try {
+                        InetAddress[] newAddresses = new InetAddress[2];
+                        checkExternalIp(newAddresses);
+                        writeNewStatusFile(newAddresses,
+                                oldIpStatus,
+                                statusFile);
+                    } catch (IOException | URISyntaxException e) {
+                        e.printStackTrace();
+                    }
+                },
+                getInitialDelay(oldIpStatus.getLastCheckTime()),
+                ONE_HOUR,
+                TimeUnit.MILLISECONDS);
     }
+
 
     //Gets the last check time and returns the time to sleep until the next check
     //The time to sleep is 1 hour minus the time passed since the last check
     //If the time passed is more than 1 hour - returns 0
     //If the last check time is null - returns 0
-    private static int getSleepTime(Date lastCheckTime) {
+    private static int getInitialDelay(Date lastCheckTime) {
         if (lastCheckTime == null) {
             return 0;
         }
@@ -75,9 +82,9 @@ public class Main {
         Inet6Address oldInet6Address = oldIpStatus.getIpv6();
         if (
                 (oldInet4Address == null && newAddresses[0] != null) ||
-                (oldInet4Address != null && !oldInet4Address.equals(newAddresses[0])) ||
-                (oldInet6Address == null && newAddresses[1] != null) ||
-                (oldInet6Address != null && !oldInet6Address.equals(newAddresses[1]))
+                        (oldInet4Address != null && !oldInet4Address.equals(newAddresses[0])) ||
+                        (oldInet6Address == null && newAddresses[1] != null) ||
+                        (oldInet6Address != null && !oldInet6Address.equals(newAddresses[1]))
         ) {
             updateDate = checkDate;
         } else {
