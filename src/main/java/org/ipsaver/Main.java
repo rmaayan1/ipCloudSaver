@@ -10,6 +10,8 @@ import java.util.Date;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /*
 A program that checks for the computer's external ip.
@@ -20,6 +22,9 @@ and the last time the ip has updated
 public class Main {
 
     public static final int ONE_HOUR = 3600000;
+    private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
+    private static final String IPV4_URL = "https://api.ipify.org";
+    private static final String IPV6_URL = "https://api6.ipify.org";
 
     public static void main(String[] args) throws IOException {
         File statusFile = getStatusFile();
@@ -28,12 +33,13 @@ public class Main {
         executorService.scheduleAtFixedRate(() -> {
                     try {
                         InetAddress[] newAddresses = new InetAddress[2];
-                        checkExternalIp(newAddresses);
+                        newAddresses[0] = checkExternalIp(IPV4_URL);
+                        newAddresses[1] = checkExternalIp(IPV6_URL);
                         writeNewStatusFile(newAddresses,
                                 oldIpStatus,
                                 statusFile);
                     } catch (IOException | URISyntaxException e) {
-                        e.printStackTrace();
+                        LOGGER.log(Level.SEVERE, "An exception occurred", e);
                     }
                 },
                 getInitialDelay(oldIpStatus.getLastCheckTime()),
@@ -72,7 +78,7 @@ public class Main {
         try {
             Files.write(statusFile.toPath(), newIpStatus.toJson().getBytes());
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "An exception occurred", e);
         }
     }
 
@@ -94,31 +100,19 @@ public class Main {
     }
 
     //Gets the external ipv4 and ipv6 of this machine and returns them.
-    private static void checkExternalIp(InetAddress[] addresses) throws IOException, URISyntaxException {
+    private static InetAddress checkExternalIp(String url) throws IOException, URISyntaxException {
 
-        URL urlIpv4 = new URI("https://api.ipify.org").toURL();
-        HttpURLConnection connIpv4 = (HttpURLConnection) urlIpv4.openConnection();
-        connIpv4.setRequestMethod("GET");
+        URL apiUrl = new URI(url).toURL();
+        HttpURLConnection conn = (HttpURLConnection) apiUrl.openConnection();
+        conn.setRequestMethod("GET");
 
-        BufferedReader readerIpv4 = new BufferedReader(new InputStreamReader(connIpv4.getInputStream()));
-        String ipv4String = readerIpv4.readLine();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        String ipString = reader.readLine();
 
-        readerIpv4.close();
-        connIpv4.disconnect();
+        reader.close();
+        conn.disconnect();
 
-        addresses[0] = InetAddress.getByName(ipv4String);
-
-        URL urlIpv6 = new URI("https://api6.ipify.org").toURL();
-        HttpURLConnection connIpv6 = (HttpURLConnection) urlIpv6.openConnection();
-        connIpv6.setRequestMethod("GET");
-
-        BufferedReader readerIpv6 = new BufferedReader(new InputStreamReader(connIpv6.getInputStream()));
-        String ipv6String = readerIpv6.readLine();
-
-        addresses[1] = InetAddress.getByName(ipv6String);
-
-        readerIpv6.close();
-        connIpv6.disconnect();
+        return InetAddress.getByName(ipString);
     }
 
     //Reads the file and converts it to an instance ot IPStatus
@@ -133,7 +127,7 @@ public class Main {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "An exception occurred", e);
             result = new IPStatus(null, null, null, null);
         }
         return result;
