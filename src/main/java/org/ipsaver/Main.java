@@ -105,19 +105,24 @@ public class Main {
     }
 
     //Gets the external ipv4 and ipv6 of this machine and returns them.
-    private static InetAddress checkExternalIp(String url) throws IOException, URISyntaxException {
+    private static InetAddress checkExternalIp(String url) throws URISyntaxException, IOException {
 
         URL apiUrl = new URI(url).toURL();
         HttpURLConnection conn = (HttpURLConnection) apiUrl.openConnection();
         conn.setRequestMethod("GET");
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-        String ipString = reader.readLine();
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            String ipString = reader.readLine();
 
-        reader.close();
-        conn.disconnect();
+            reader.close();
+            conn.disconnect();
 
-        return InetAddress.getByName(ipString);
+            return InetAddress.getByName(ipString);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "An exception occurred", e);
+            return null;
+        }
     }
 
     //Reads the file and converts it to an instance ot IPStatus
